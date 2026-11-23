@@ -1,0 +1,85 @@
+Phase 1 — Check the coordinator
+kubectl get pods -n banking-assignment3 -l app=coordinator
+kubectl exec -n banking-assignment3 <coordinator-pod-name> -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:5000/health').read().decode())"
+
+Phase 2 — Enable the experiment mode
+kubectl set image deployment/coordinator coordinator=sabash81/distributed-banking-coordinator:assignment3-experiment4 -n banking-assignment3
+kubectl rollout status deployment/coordinator -n banking-assignment3
+kubectl set env deployment/coordinator EXPERIMENT4_PAUSE_AFTER_FIRST_ACK=1 -n banking-assignment3
+kubectl rollout status deployment/coordinator -n banking-assignment3
+kubectl get pods -n banking-assignment3 -l app=coordinator -o wide
+kubectl exec -n banking-assignment3 <coordinator-pod-name> -- printenv EXPERIMENT4_PAUSE_AFTER_FIRST_ACK 
+
+Phase 3 — Check the initial account balances
+kubectl get pods -n banking-assignment3 -l app=gateway
+kubectl exec -n banking-assignment3 <gateway-pod-name> -- python -c "import urllib.request; [(print(account + ': ' + urllib.request.urlopen('http://localhost:5000/accounts/' + account + '/balance').read().decode())) for account in ['A0999', 'A1999']]"
+
+Phase 4 — Verify database roles
+kubectl exec -n banking-assignment3 shard-a-db-0 -- psql -U bankuser -d shard_a -c "SELECT pg_is_in_recovery() AS is_standby;"
+kubectl exec -n banking-assignment3 shard-b-db-0 -- psql -U bankuser -d shard_b -c "SELECT pg_is_in_recovery() AS is_standby;"
+
+-----> f
+
+kubectl exec -n banking-assignment3 shard-a-standby-0 -- psql -U bankuser -d shard_a -c "SELECT pg_is_in_recovery() AS is_standby;"
+kubectl exec -n banking-assignment3 shard-b-standby-0 -- psql -U bankuser -d shard_b -c "SELECT pg_is_in_recovery() AS is_standby;"
+
+   ------> t
+
+Phase 5 — Inject the coordinator interruption
+kubectl exec -n banking-assignment3 <gateway-pod-name> -- python -c "import json,urllib.request,urllib.error; u='http://localhost:5000/accounts/transfer'; d={'from_account_id':'A0999','to_account_id':'A1999','amount':100.00}; r=urllib.request.Request(u,data=json.dumps(d).encode(),headers={'Content-Type':'application/json'},method='POST'); exec(\"try:\\n x=urllib.request.urlopen(r,timeout=40); print('HTTP',x.status); print(x.read().decode())\\nexcept urllib.error.HTTPError as e:\\n print('HTTP',e.code); print(e.read().decode())\\nexcept Exception as e:\\n print(type(e).__name__+':',e)\")"
+
+--------> HTTP 502
+          {"error":"The transfer service could not be reached."}
+
+kubectl get pods -n banking-assignment3 -l app=coordinator
+kubectl exec -n banking-assignment3 <coordinator-pod-name> -- cat /tmp/experiment4-paused
+    
+   ----------> get the transaction ID
+
+Phase 6 — Verify the interrupted transaction state
+kubectl exec -n banking-assignment3 coordinator-db-0 -- psql -U bankuser -d coordinator -c "SELECT transaction_id, status, from_account_id, to_account_id, amount, created_at, updated_at FROM distributed_transactions WHERE transaction_id = '   Transaction ID  ';"
+
+---------> COMMIT_DECIDED
+
+kubectl exec -n banking-assignment3 coordinator-db-0 -- psql -U bankuser -d coordinator -c "SELECT transaction_id, shard_id, status, updated_at FROM transaction_participants WHERE transaction_id = '1ce8a70b-6396-400f-a56a-ec0af0823e76' ORDER BY shard_id;"
+
+---------------> Both should say YES
+
+kubectl exec -n banking-assignment3 <gateway-pod-name> -- python -c "import urllib.request; [(print(account + ': ' + urllib.request.urlopen('http://localhost:5000/accounts/' + account + '/balance').read().decode())) for account in ['A0999', 'A1999']]"
+kubectl exec -n banking-assignment3 shard-a-db-0 -- psql -U bankuser -d shard_a -c "SELECT gid, prepared, owner, database FROM pg_prepared_xacts;"
+kubectl exec -n banking-assignment3 shard-b-db-0 -- psql -U bankuser -d shard_b -c "SELECT gid, prepared, owner, database FROM pg_prepared_xacts;"
+
+
+Phase 7 — Interrupt and recover the coordinator
+kubectl delete pod <coordinator-pod-name> -n banking-assignment3
+kubectl get pods -n banking-assignment3 -l app=coordinator -w
+kubectl get pods -n banking-assignment3 -l app=coordinator
+kubectl logs <new-coordinator-pod-name> -n banking-assignment3 --since=5m
+kubectl exec -n banking-assignment3 <new-coordinator-pod-name> -- python -c "import urllib.request; print(urllib.request.urlopen('http://localhost:5000/health').read().decode())"
+
+Phase 8 — Verify transaction recovery
+kubectl exec -n banking-assignment3 coordinator-db-0 -- psql -U bankuser -d coordinator -c "SELECT transaction_id, status, updated_at FROM distributed_transactions WHERE transaction_id = 'Transaction ID';"
+
+----------> COMPLETED
+
+kubectl exec -n banking-assignment3 coordinator-db-0 -- psql -U bankuser -d coordinator -c "SELECT transaction_id, shard_id, status, updated_at FROM transaction_participants WHERE transaction_id = '1ce8a70b-6396-400f-a56a-ec0af0823e76' ORDER BY shard_id;"
+
+-----------------> both should say COMMITTED
+
+kubectl exec -n banking-assignment3 <gateway-pod-name> -- python -c "import urllib.request; [(print(account + ': ' + urllib.request.urlopen('http://localhost:5000/accounts/' + account + '/balance').read().decode())) for account in ['A0999', 'A1999']]"
+kubectl exec -n banking-assignment3 shard-a-db-0 -- psql -U bankuser -d shard_a -c "SELECT gid, prepared, owner, database FROM pg_prepared_xacts;"
+kubectl exec -n banking-assignment3 shard-b-db-0 -- psql -U bankuser -d shard_b -c "SELECT gid, prepared, owner, database FROM pg_prepared_xacts;"
+
+
+Phase 9 — Restore the normal coordinator configuration
+kubectl set image deployment/coordinator coordinator=sabash81/distributed-banking-coordinator:assignment3 -n banking-assignment3
+kubectl rollout status deployment/coordinator -n banking-assignment3
+kubectl set env deployment/coordinator EXPERIMENT4_PAUSE_AFTER_FIRST_ACK- -n banking-assignment3
+kubectl get deployment coordinator -n banking-assignment3 -o jsonpath='{.spec.template.spec.containers[?(@.name=="coordinator")].image}{"\n"}{.spec.template.spec.containers[?(@.name=="coordinator")].env}{"\n"}'
+
+
+
+
+   
+
+
