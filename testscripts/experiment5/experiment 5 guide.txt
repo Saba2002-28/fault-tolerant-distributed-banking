@@ -1,0 +1,8 @@
+In the first terminal in project directory run:
+1)watch -n 5 'kubectl get hpa -n banking-assignment3; echo; kubectl get pods -n banking-assignment3 -l app=bank-a1'
+
+In the second terminal in project directory run:
+2)port forwarding to 5001:5000
+
+In the third terminal in project directory:
+3)starting the test for experiment 5
