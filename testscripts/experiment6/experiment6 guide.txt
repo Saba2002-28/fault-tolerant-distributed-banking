@@ -1,0 +1,29 @@
+In the first terminal run:
+1)kubectl get deployment bank-a1 -n banking-assignment3 -o wide
+2)kubectl get pods -n banking-assignment3 -l app=bank-a1
+3)kubectl port-forward service/gateway 5000:5000 -n banking-assignment3
+
+In the second terminal:
+4)python3 testscripts/experiment6/rolling_write_test.py
+
+While the test is running in the second terminal, in the third terminal run:
+
+5)kubectl set image deployment/bank-a1 banking-shard=sabash81/distributed-banking-shard:assignment3-rollout-test -n banking-assignment3
+6)kubectl rollout status deployment/bank-a1 -n banking-assignment3
+7)kubectl get pods -n banking-assignment3 -l app=bank-a1
+8)kubectl exec shard-a-standby-0 -n banking-assignment3 -- psql -U bankuser -d shard_a -c "SELECT account_id, balance FROM accounts WHERE account_id = 'A0001';"
+
+After the test run:
+9)kubectl set image deployment/bank-a1 banking-shard=sabash81/distributed-banking-shard:does-not-exist -n banking-assignment3
+10)kubectl get pods -n banking-assignment3 -l app=bank-a1
+
+11)kubectl rollout undo deployment/bank-a1 -n banking-assignment3
+12)kubectl rollout status deployment/bank-a1 -n banking-assignment3
+
+13)kubectl set image deployment/bank-a1 banking-shard=sabash81/distributed-banking-shard:assignment3 -n banking-assignment3
+
+14)kubectl rollout status deployment/bank-a1 -n banking-assignment3
+
+15)kubectl get deployment bank-a1 -n banking-assignment3 -o wide
+
+16)kubectl get pods -n banking-assignment3 -l app=bank-a1
