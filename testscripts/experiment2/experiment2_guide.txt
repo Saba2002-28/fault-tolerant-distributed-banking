@@ -1,0 +1,106 @@
+1) chmod +x testscripts/experiment2/experiment2_shard_a_failover.sh
+2)ls -l testscripts/experiment2/experiment2_shard_a_failover.sh
+3)./testscripts/experiment2/experiment2_shard_a_failover.sh
+
+after the test:
+Step 1 — Stop incoming transactions
+
+1)kubectl scale deployment gateway coordinator \
+  --replicas=0 -n banking-assignment3
+
+2)kubectl get pods -n banking-assignment3
+
+Step 2 — Stop the current primary
+At this point, shard-a-standby-0 is the primary. Stop it before promoting the rebuilt database. This avoids having two writable primaries.
+
+1)kubectl scale statefulset shard-a-standby \
+  --replicas=0 -n banking-assignment3
+
+2)kubectl wait --for=delete pod/shard-a-standby-0 \
+  -n banking-assignment3 --timeout=180s
+
+Step 3 — Promote shard-a-db-0
+
+1)kubectl exec -n banking-assignment3 shard-a-db-0 -- \
+  psql -U bankuser -d shard_a -c "SELECT pg_promote();"
+
+2)kubectl exec -n banking-assignment3 shard-a-db-0 -- \
+  psql -U bankuser -d shard_a -c "SELECT pg_is_in_recovery();" ---> f
+
+Step 4 — Point the primary Service to the correct Pod
+
+1)kubectl patch service shard-a-db -n banking-assignment3 \
+  -p '{"spec":{"selector":{"app":"shard-a-db"}}}'
+
+2)kubectl get endpoints shard-a-db -n banking-assignment3 -o wide
+
+The endpoint should now point to shard-a-db-0.
+
+Step 5 — Prepare the replication slot
+
+1)kubectl exec -n banking-assignment3 shard-a-db-0 -- \
+  psql -U bankuser -d shard_a -c \
+  "SELECT slot_name, active FROM pg_replication_slots;"
+
+If shard_a_standby does not exist, create it:
+
+2)kubectl exec -n banking-assignment3 shard-a-db-0 -- \
+  psql -U bankuser -d shard_a -c \
+  "SELECT pg_create_physical_replication_slot('shard_a_standby');"
+
+Step 6 — Clean the former primary's data directory
+
+1)kubectl get pods,pvc -n banking-assignment3
+
+2)kubectl run shard-a-standby-cleaner -n banking-assignment3 \
+  --image=postgres:17 --restart=Never \
+  --overrides='{"spec":{"securityContext":{"runAsUser":999,"runAsGroup":999,"fsGroup":999},"containers":[{"name":"cleaner","image":"postgres:17","imagePullPolicy":"IfNotPresent","command":["bash","-c","set -e; echo \"Before cleanup:\"; ls -la /data/pgdata; find /data/pgdata -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +; echo \"After cleanup:\"; ls -la /data/pgdata"],"volumeMounts":[{"name":"data","mountPath":"/data"}]}],"volumes":[{"name":"data","persistentVolumeClaim":{"claimName":"data-shard-a-standby-0"}}]}}'
+
+3)kubectl wait --for=jsonpath='{.status.phase}'=Succeeded \
+  pod/shard-a-standby-cleaner -n banking-assignment3 --timeout=180s
+
+4)kubectl logs shard-a-standby-cleaner -n banking-assignment3
+
+5)kubectl delete pod shard-a-standby-cleaner -n banking-assignment3
+
+Important
+ This removes the contents of the PostgreSQL data directory on the former primary's PVC. It does not delete the PVC itself. Do not run it unless shard-a-standby-0 is stopped and you have verified that shard-a-db-0 is the healthy primary.
+
+
+Step 7 — Recreate the standby
+
+1)kubectl scale statefulset shard-a-standby \
+  --replicas=1 -n banking-assignment3
+
+
+2)kubectl wait --for=condition=Ready pod/shard-a-standby-0 \
+  -n banking-assignment3 --timeout=300s
+
+3)kubectl exec -n banking-assignment3 shard-a-standby-0 -- \
+  psql -U bankuser -d shard_a -c "SELECT pg_is_in_recovery();"  --> t
+
+Step 8 — Verify streaming replication
+
+1)kubectl exec -n banking-assignment3 shard-a-db-0 -- \
+  psql -U bankuser -d shard_a -c \
+  "SELECT application_name, client_addr, state, sync_state, sent_lsn, write_lsn, flush_lsn, replay_lsn FROM pg_stat_replication;"
+
+2)kubectl get services,endpoints shard-a-db shard-a-standby \
+  -n banking-assignment3
+
+Step 9 — Restore the applications
+
+1)kubectl scale deployment coordinator gateway \
+  --replicas=1 -n banking-assignment3
+
+2)kubectl get pods -n banking-assignment3
+
+Step 10 — Final verification
+
+1)kubectl exec -n banking-assignment3 shard-a-db-0 -- \
+  psql -U bankuser -d shard_a -c \
+  "SELECT pg_is_in_recovery(), account_id, balance FROM accounts WHERE account_id = 'A0001';"
+
+2)kubectl exec -n banking-assignment3 shard-a-standby-0 -- \
+  psql -U bankuser -d shard_a -c \
+  "SELECT pg_is_in_recovery(), account_id, balance FROM accounts WHERE account_id = 'A0001';" 
