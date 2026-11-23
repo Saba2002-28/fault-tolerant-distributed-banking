@@ -762,6 +762,7 @@ The main deliverables include:
 - Project documentation
 
 Refer to the repository directories for the exact organization of these files.
+
 Links to Docker Hub repositories:
 
 
@@ -769,4 +770,3 @@ Links to Docker Hub repositories:
 
 Developed as an academic project for the Distributed Systems course.
 
-Links to Docker Hub repository:
