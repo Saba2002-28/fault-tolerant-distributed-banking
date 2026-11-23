@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway-external
+  namespace: banking-assignment3
+spec:
+  type: NodePort
+  selector:
+    app: gateway
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 30081
