@@ -1,0 +1,8 @@
+1)kubectl port-forward service/gateway 5000:5000 -n banking-assignment3
+2)kubectl get pods -n banking-assignment3 -l 'app in (bank-a1,bank-a2)' -o wide -w
+3)python3 "test scripts/experiment1/experiment1_pod_failure.py"
+4)kubectl scale deployment bank-a1 --replicas=0 -n banking-assignment3
+5)kubectl get pods -n banking-assignment3 -l 'app in (bank-a1,bank-a2)'
+6)kubectl scale deployment bank-a1 --replicas=1 -n banking-assignment3
+7)kubectl get pods -n banking-assignment3 -l 'app in (bank-a1,bank-a2)'
+8)kubectl get deployments -n banking-assignment3
