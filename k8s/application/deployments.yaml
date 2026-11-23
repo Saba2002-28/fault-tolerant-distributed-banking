@@ -1,0 +1,307 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: banking-assignment3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: sabash81/distributed-banking-gateway:assignment3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: gateway-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coordinator
+  namespace: banking-assignment3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coordinator
+  template:
+    metadata:
+      labels:
+        app: coordinator
+    spec:
+      containers:
+        - name: coordinator
+          image: sabash81/distributed-banking-coordinator:assignment3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: coordinator-config
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-db-secret
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-a1
+  namespace: banking-assignment3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bank-a1
+  template:
+    metadata:
+      labels:
+        app: bank-a1
+    spec:
+      containers:
+        - name: banking-shard
+          image: sabash81/distributed-banking-shard:assignment3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: shard-a-config
+          env:
+            - name: REPLICA_ID
+              value: bank-a1
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-db-secret
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-a2
+  namespace: banking-assignment3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bank-a2
+  template:
+    metadata:
+      labels:
+        app: bank-a2
+    spec:
+      containers:
+        - name: banking-shard
+          image: sabash81/distributed-banking-shard:assignment3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: shard-a-config
+          env:
+            - name: REPLICA_ID
+              value: bank-a2
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-db-secret
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-b1
+  namespace: banking-assignment3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bank-b1
+  template:
+    metadata:
+      labels:
+        app: bank-b1
+    spec:
+      containers:
+        - name: banking-shard
+          image: sabash81/distributed-banking-shard:assignment3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: shard-b-config
+          env:
+            - name: REPLICA_ID
+              value: bank-b1
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-db-secret
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bank-b2
+  namespace: banking-assignment3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bank-b2
+  template:
+    metadata:
+      labels:
+        app: bank-b2
+    spec:
+      containers:
+        - name: banking-shard
+          image: sabash81/distributed-banking-shard:assignment3
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: shard-b-config
+          env:
+            - name: REPLICA_ID
+              value: bank-b2
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-db-secret
+                  key: POSTGRES_PASSWORD
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
