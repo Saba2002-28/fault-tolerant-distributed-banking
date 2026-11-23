@@ -768,3 +768,5 @@ Links to Docker Hub repositories:
 ## Acknowledgements
 
 Developed as an academic project for the Distributed Systems course.
+
+Links to Docker Hub repository:
