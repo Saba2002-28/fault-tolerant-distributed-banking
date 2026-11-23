@@ -1,0 +1,5 @@
+In terminal 1 in the directory of project run:
+1) kubectl port-forward service/gateway 5000:5000 -n banking-assignment3
+
+In the second terminal in the project directory run:
+2) python3 testscripts/experiment3/experiment3_concurrent_transactions.py
