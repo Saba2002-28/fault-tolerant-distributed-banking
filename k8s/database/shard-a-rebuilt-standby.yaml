@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: shard-a-db
+  namespace: banking-assignment3
+spec:
+  serviceName: shard-a-db
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app: shard-a-db
+  template:
+    metadata:
+      labels:
+        app: shard-a-db
+    spec:
+      securityContext:
+        runAsUser: 999
+        fsGroup: 999
+
+      initContainers:
+        - name: initialize-standby
+          image: postgres:17
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: banking-db-secret
+                  key: POSTGRES_PASSWORD
+          command: ["/bin/bash", "-ceu"]
+          args:
+            - |
+              mkdir -p "${PGDATA}"
+
+              if [ ! -s "${PGDATA}/PG_VERSION" ]; then
+                rm -f "${PGDATA}/.pgpass"
+
+                pg_basebackup \
+                  --host=shard-a-db \
+                  --port=5432 \
+                  --username=bankuser \
+                  --pgdata="${PGDATA}" \
+                  --format=plain \
+                  --wal-method=stream \
+                  --write-recovery-conf \
+                  --slot=shard_a_rebuilt_standby \
+                  --progress
+
+                escaped_password="$(printf '%s' "${PGPASSWORD}" | sed 's/\\/\\\\/g; s/:/\\:/g')"
+                printf '*:*:*:bankuser:%s\n' "${escaped_password}" > "${PGDATA}/.pgpass"
+                chmod 0600 "${PGDATA}/.pgpass"
+              fi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+
+      containers:
+        - name: postgres
+          image: postgres:17
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: PGPASSFILE
+              value: /var/lib/postgresql/data/pgdata/.pgpass
+          args:
+            - postgres
+            - -c
+            - max_prepared_transactions=100
+          ports:
+            - name: postgres
+              containerPort: 5432
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - bankuser
+                - -d
+                - shard_a
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
