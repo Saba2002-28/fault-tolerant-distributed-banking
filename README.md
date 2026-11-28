@@ -1,6 +1,6 @@
 # Fault-Tolerant Distributed Banking on Kubernetes
 
-A fault-tolerant distributed banking platform developed as part of **Distributed Systems – Assignment 3**. This project extends the original Assignment 2 banking system by deploying it on Kubernetes (Minikube) and introducing persistent database storage, PostgreSQL primary-standby replication, failure recovery, workload-driven autoscaling, and rolling updates.
+A fault-tolerant distributed banking platform. This project introduces persistent database storage, PostgreSQL primary-standby replication, failure recovery, workload-driven autoscaling, and rolling updates.
 
 The system uses two independent banking shards, replicated banking application services, a shard-aware Gateway, and a Transaction Coordinator implementing the Two-Phase Commit (2PC) protocol.
 
