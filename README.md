@@ -699,13 +699,13 @@ distributed-banking-platform/
 ├── k8s/
 │   ├── application/
 │   │   ├── services/
-│   │   │  ├── gateway-external.md
-│   │   │  └── services.md
-│   │   └── deployments.md
+│   │   │  ├── gateway-external.yaml
+│   │   │  └── services.yaml
+│   │   └── deployments.yaml
 │   └── database/
-│   │   ├── databases.md
-│   │   ├── shard-a-rebuilt-standby.md
-│   │   └── standbys.md
+│   │   ├── databases.yaml
+│   │   ├── shard-a-rebuilt-standby.yaml
+│   │   └── standbys.yaml
 │
 ├── testscripts/
 │   ├── experiment1/
