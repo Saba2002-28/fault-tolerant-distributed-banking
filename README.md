@@ -765,6 +765,9 @@ Refer to the repository directories for the exact organization of these files.
 
 Links to Docker Hub repositories:
 
+https://hub.docker.com/r/sabash81/distributed-banking-assignment3-coordinator/tags
+https://hub.docker.com/r/sabash81/distributed-banking-assignment3-shard/tags
+https://hub.docker.com/r/sabash81/distributed-banking-assignment3-gateway/tags
 
 ## Acknowledgements
 
